@@ -1,0 +1,77 @@
+# version: "3.9"
+
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: finsmart-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongo:/data/db
+    command: ["mongod", "--replSet", "rs0"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - finsmart-net
+
+  wallet-service:
+    build: ./ms/wallet-service
+    container_name: finsmart-wallet
+    env_file:
+      - ./ms/wallet-service/.env
+    ports:
+      - "8002:8002"
+    depends_on:
+      - mongo
+      - auth-service
+    networks:
+      - finsmart-net
+
+  transaction-service:
+    build: ./ms/transaction-service
+    container_name: finsmart-transaction
+    env_file:
+      - ./ms/transaction-service/.env
+    ports:
+      - "8003:8003"
+    depends_on:
+      - mongo
+      - wallet-service
+      - auth-service
+    networks:
+      - finsmart-net
+  
+  auth-service:
+    build: ./ms/auth-service
+    container_name: finsmart-auth
+    env_file:
+      - ./ms/auth-service/.env
+    ports:
+      - "8001:8001"
+    depends_on:
+      - mongo
+    networks:
+      - finsmart-net
+
+  fraud-service:
+    build: ./ms/fraud-service
+    container_name: finsmart-fraud
+    ports:
+      - "8100:8100"
+    env_file:
+      - ./ms/fraud-service/.env
+    depends_on:
+      - mongo
+      - transaction-service
+    networks:
+      - finsmart-net
+
+# volumes:
+#   mongo-data:
+
+networks:
+  finsmart-net:
+    driver: bridge
